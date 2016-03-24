@@ -98,82 +98,10 @@ public class Login extends Frame {
 //new Login().setVisible(true);
 
     }
-    //ok事件
-    class BtnOk implements ActionListener {
 
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-
-                String username = textField1.getText().trim();
-                String password = textField2.getText().trim();
-               // UserService.getInstance().validate(username,password);
-                Message message = new Message();
-                message.setType(model.Type.LOG);
-                message.setUsername(username);
-                message.setPassword(password);
-                sendMessage(message);
-            ACK ack = null;
-            try {
-                ack = (ACK)ois.readObject();
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            } catch (ClassNotFoundException e1) {
-                e1.printStackTrace();
-            }
-
-            if (ack.isPermit()){
-
-
-                JOptionPane.showMessageDialog(null, "Login Success");
-                dispose();
-                new ChatRoom(username).launchFrame();
-
-
-
-
-
-            } else {
-
-
-                if (ack.getMsg().equals("RepeatLog")) {
-                    JOptionPane.showMessageDialog(null, "Repeat Log","Error", JOptionPane.ERROR_MESSAGE);
-                }else{
-                JOptionPane.showMessageDialog(null, "Error User Name or error password ","Error", JOptionPane.ERROR_MESSAGE);
-            }}
-
-
-
-
-
-        }
-    }
-    //cancel事件
-    class BtnCancel implements ActionListener{
-
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            textField1.setText("");
-            textField2.setText("");
-
-        }
-
-    }
-    //register事件
-    class BtnRegister implements ActionListener{
-
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            new Register().setVisible(true);
-
-        }
-
-    }
     public void connect() {
         try {
-            s = new Socket("localhost",6666);
+            s = new Socket("localhost", 6666);
             oos = new ObjectOutputStream(s.getOutputStream());
             ois = new ObjectInputStream(s.getInputStream());
         } catch (UnknownHostException e) {
@@ -184,7 +112,6 @@ public class Login extends Frame {
         System.out.println("connected");
     }
 
-
     public void sendMessage(Message message) {
         try {
             oos.writeObject(message);
@@ -194,6 +121,89 @@ public class Login extends Frame {
         } catch (IOException e1) {
             e1.printStackTrace();
         }
+    }
+
+    //ok事件
+    class BtnOk implements ActionListener {
+
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+
+            String username = textField1.getText().trim();
+            String password = textField2.getText().trim();
+            if (username == null || username.equals("")) {
+                JOptionPane.showMessageDialog(null, "User name is Empty! ", "Error", JOptionPane.ERROR_MESSAGE);
+
+            } else if (password == null || password.equals("")) {
+
+                JOptionPane.showMessageDialog(null, "Password id Empty", "Error", JOptionPane.ERROR_MESSAGE);
+            } else {
+
+
+                // UserService.getInstance().validate(username,password);
+                Message message = new Message();
+                message.setType(model.Type.LOG);
+                message.setUsername(username);
+                message.setPassword(password);
+                sendMessage(message);
+                ACK ack = null;
+                try {
+                    ack = (ACK) ois.readObject();
+                    System.out.println(ack.getMsg());
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                } catch (ClassNotFoundException e1) {
+                    e1.printStackTrace();
+                }
+
+                if (ack.isPermit()) {
+
+
+                    JOptionPane.showMessageDialog(null, "Login Success");
+                    dispose();
+                    new Thread(new ChatRoom(username)).start();
+
+
+                } else {
+
+
+                    if (ack.getMsg().equals("RepeatLog")) {
+                        JOptionPane.showMessageDialog(null, "Repeat Log", "Error", JOptionPane.ERROR_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(null, "Error User Name or error password ", "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+
+
+            }
+
+        }
+    }
+
+    //cancel事件
+    class BtnCancel implements ActionListener {
+
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            textField1.setText("");
+            textField2.setText("");
+
+        }
+
+    }
+
+    //register事件
+    class BtnRegister implements ActionListener {
+
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            new Register().setVisible(true);
+
+        }
+
     }
 
 }

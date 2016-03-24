@@ -4,11 +4,28 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Created by tage on 3/23/16.
  */
 public class Message implements Serializable{
+
+    private boolean single = false;
+    private Type type;
+    private String username;
+    private String message;
+    private String password;
+    private Date date;
+    private String[] userOnline;
+
+    public boolean isSingle() {
+        return single;
+    }
+
+    public void setSingle(boolean single) {
+        this.single = single;
+    }
 
     public Type getType() {
         return type;
@@ -42,12 +59,6 @@ public class Message implements Serializable{
         this.password = password;
     }
 
-    private Type type;
-    private String username;
-    private String message;
-    private String password;
-    private Date date;
-
     public Date getDate() {
         return date;
     }
@@ -56,8 +67,13 @@ public class Message implements Serializable{
         this.date = date;
     }
 
-    private List<String> userOnline = new ArrayList<>();
+    public String[] getUserOnline() {
+        return userOnline;
+    }
 
+    public void setUserOnline(String[] userOnline) {
+        this.userOnline = userOnline;
+    }
 
     public String toString() {
         return "Date: " + date + "\n" + username +": " + message;

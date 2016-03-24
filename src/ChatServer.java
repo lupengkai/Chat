@@ -1,6 +1,4 @@
-import model.ACK;
-import model.Message;
-import model.Type;
+import model.*;
 import service.UserService;
 
 import java.io.IOException;
@@ -11,8 +9,8 @@ import java.util.*;
 public class ChatServer {
     boolean started = false;
     ServerSocket ss = null;
-    List<Client> clients = new ArrayList<Client>();
-    List<String> usernames = new ArrayList<>();
+    volatile List<Client> clients = new ArrayList<Client>();
+    volatile List<String> usernames = new ArrayList<>();
 
 
     public static void main(String[] args) {
@@ -24,7 +22,7 @@ public class ChatServer {
             ss = new ServerSocket(6666);
             started = true;
         } catch (BindException e) {
-           e.printStackTrace();
+            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -51,11 +49,15 @@ public class ChatServer {
     }
 
     private class Client implements Runnable {
+        int count = 0;
+        int pCount = 0;
         private String username;
         private Socket s = null;
         private ObjectInput ois = null;
         private ObjectOutputStream oos = null;
         private boolean bConnect = false;
+        private String friendName;
+        private boolean login = false;
 
 
         public Client(Socket s) {
@@ -82,86 +84,169 @@ public class ChatServer {
         }
 
 
-        public void run() {
+        public synchronized void run() {
+            while (login == false) {
+                try {
+                    Object o = ois.readObject();
+                    Message message = (Message) o;
+                    System.out.println("read");
 
-            try {
-                Object o = ois.readObject();
-                Message message = (Message) o;
-                if (message.getType() == Type.LOG) {
+                    if (message.getType() == Type.LOG) {
+                        System.out.println("check log");
 
-                    ACK ack = new ACK();
+                        ACK ack = new ACK();
 
-                    if (usernames.contains(message.getUsername())) {
-                        ack.setPermit(false);
-                        ack.setMsg("RepeatLog");
-                        oos.writeObject(ack);
-                    } else {
-                        try {
-                            UserService.getInstance().validate(message.getUsername(), message.getPassword());
+                        if (usernames.contains(message.getUsername())) {
+                            ack.setPermit(false);
+                            ack.setMsg("RepeatLog");
+                            oos.writeObject(ack);
+                        } else {
+                            try {
+                                UserService.getInstance().validate(message.getUsername(), message.getPassword());
 
-                            ack.setPermit(true);
+                                ack.setPermit(true);
 
-                            username = message.getUsername();
+                                username = message.getUsername();
+                                login = true;
 
 
+                                oos.writeObject(ack);
+                                oos.flush();
+                            } catch (Exception e) {
+                                ack.setPermit(false);
+                                ack.setMsg("Error password or error username.");
+                            }
                             oos.writeObject(ack);
                             oos.flush();
-                        } catch (Exception e) {
+                        }
+                    } else if (message.getType() == Type.REGISTER) {
+
+
+                        ACK ack = new ACK();
+
+
+                        if (UserService.getInstance().loadByName(message.getUsername()) != null) {
+                            ack.setPermit(true);
+                            clients.add(this);
+                            System.out.println(usernames);
+                        } else {
                             ack.setPermit(false);
                         }
                         oos.writeObject(ack);
                         oos.flush();
+
+                    } else if (message.getType() == Type.ENTER) {
+                        if (message.isSingle() == false) {
+
+
+                            for (int i = 0; i < clients.size(); i++) {
+                                Client c = clients.get(i);
+                                if (c.username == message.getUsername()) {
+                                    count++;
+                                }
+
+                            }
+
+
+                            username = message.getUsername();
+                            clients.add(this);
+                            bConnect = true;
+                            login = true;
+
+                            usernames.add(message.getUsername());
+
+
+                            message.setUsername("System");
+                            message.setMessage(username + " Enter! Welcome!");
+                            String[] uo = new String[usernames.size()];
+                            for (int i = 0; i < usernames.size(); i++) {
+                                uo[i] = usernames.get(i);
+                            }
+
+                            message.setUserOnline((uo));
+
+
+                            for (int i = 0; i < clients.size(); i++) {
+
+                                Client c = clients.get(i);
+                                if (c.count == 0) {
+                                    message.setDate(new Date());
+
+
+                                    System.out.println(message.getUserOnline() + " " + c.username);
+                                    c.oos.writeObject(message);
+                                    c.oos.flush();
+                                    System.out.println(message.getUserOnline() + " " + c.username);
+
+
+                                }
+
+                            }
+                        } else {
+                            login = true;
+                            System.out.println("single connect");
+                            username = message.getUsername();
+                            bConnect = true;
+                            PrivateMessage pm = (PrivateMessage) message;
+                            pCount = pm.getPcount();
+
+                            friendName = pm.getDestinationName();
+
+
+                            for (int i = 0; i < clients.size(); i++) {
+                                Client c = clients.get(i);
+                                if (c.username.equals(username)) {
+                                    count++;
+                                }
+                            }
+                            pm.setCount(count);
+                            System.out.println(count);
+
+
+                            clients.add(this);
+
+
+                            for (int i = 0; i < clients.size(); i++) {
+                                Client c = clients.get(i);
+                                if (c.count == pm.getPcount() && c.username.equals(pm.getDestinationName())) {
+                                    System.out.println("Destination" + c.username + "  " + c.count + pm.getMeet());
+                                    message.setDate(new Date());
+                                    c.send(message);
+                                    System.out.println(message.getMessage());
+                                    if (pm.getMeet() == Meet.HELLO) {
+                                        c.pCount = pm.getCount();
+                                    }
+
+                                    send(message);
+                                    oos.flush();
+                                    System.out.println(message + "enter");
+                                }
+                            }
+
+
+                        }
                     }
-                } else if (message.getType() == Type.REGISTER) {
 
 
-                    ACK ack = new ACK();
-
-
-                    if (UserService.getInstance().loadByName(message.getUsername()) != null) {
-                        ack.setPermit(true);
-                        clients.add(this);
-                        System.out.println(usernames);
-                    } else {
-                        ack.setPermit(false);
-                    }
-                    oos.writeObject(ack);
-                    oos.flush();
-
-                } else if (message.getType() == Type.ENTER) {
-                    username = message.getUsername();
-                    clients.add(this);
-                    bConnect = true;
-
-                    usernames.add(message.getUsername());
-                    message.setUsername("System");
-                    message.setMessage(username + " Enter! Welcome!");
-                    for (int i = 0; i < clients.size(); i++) {
-                        Client c = clients.get(i);
-                        message.setDate(new Date());
-                        c.send(message);
-                        oos.flush();
-                    }
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
-            } catch (ClassNotFoundException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
             }
-
-
-
-
 
 
             try {
 
 
-
                 while (bConnect) {
+
 
                     Object o = ois.readObject();
                     Message message = (Message) o;
+
+
+                    if (message.isSingle() == false) {
 
 
                         System.out.println(message.getMessage());
@@ -169,20 +254,89 @@ public class ChatServer {
 
                         for (int i = 0; i < clients.size(); i++) {
                             Client c = clients.get(i);
-                            message.setDate(new Date());
-                            c.send(message);
-                            oos.flush();
+                            if (c.count == 0) {
+                                message.setDate(new Date());
+                                c.send(message);
+                                System.out.println(message.getUserOnline());
+                            }
                         }
+                    } else {
+                        PrivateMessage pm = (PrivateMessage) message;
+                        System.out.println(pm.getCount() + "-->" + pm.getPcount());
+
+
+                        for (int i = 0; i < clients.size(); i++) {
+                            Client c = clients.get(i);
+                            if (c.count == pm.getPcount() && c.username.equals(pm.getDestinationName()) ||
+                                    c.count == pm.getCount() && c.username.equals(pm.getUsername())) {
+                                message.setDate(new Date());
+                                c.send(message);
+                                oos.flush();
+                                System.out.println("twice Pcount" + pCount);
+                            }
+                        }
+
+
                     }
                 }
-             catch (EOFException e) {
+            } catch (EOFException e) {
                 System.out.println("Client Closed");
                 bConnect = false;
                 clients.remove(this);
-                usernames.remove(this.username);
-                System.out.println(clients.size());
-                System.out.println(usernames.size());
 
+
+                if (count == 0) {
+                    usernames.remove(this.username);
+
+
+                    Message message = new Message();
+                    message.setType(Type.EXIT);
+                    String[] uo = new String[usernames.size()];
+                    for (int i = 0; i < usernames.size(); i++) {
+                        uo[i] = usernames.get(i);
+                    }
+
+                    message.setUserOnline((uo));
+                    message.setUsername("System");
+                    message.setMessage(username + "  Exit. Bye!");
+
+                    for (int i = 0; i < clients.size(); i++) {
+                        Client c = clients.get(i);
+                        if (c.count == 0) {
+                            message.setDate(new Date());
+                            c.send(message);
+                            try {
+                                oos.flush();
+                            } catch (IOException e1) {
+                                e1.printStackTrace();
+                            }
+                        }
+                    }
+
+
+                    System.out.println(clients.size());
+                    System.out.println(usernames.size());
+                } else {
+                    PrivateMessage pm = new PrivateMessage();
+                    pm.setPcount(pCount);
+                    pm.setUsername(username);
+                    pm.setDestinationName(friendName);
+                    pm.setMessage("Bye " + friendName);
+                    pm.setType(Type.EXIT);
+                    pm.setSingle(true);
+                    pm.setDate(new Date());
+
+
+                    for (int i = 0; i < clients.size(); i++) {
+                        Client c = clients.get(i);
+                        System.out.println("123 single de pcount" + pCount);
+                        if (c.count == pm.getPcount() && c.username.equals(pm.getDestinationName())) {
+                            pm.setDate(new Date());
+                            c.send(pm);
+                            System.out.println("twice");
+                        }
+                    }
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (ClassNotFoundException e) {
