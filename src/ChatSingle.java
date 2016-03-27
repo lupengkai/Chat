@@ -60,7 +60,8 @@ public class ChatSingle extends Frame implements Runnable {
                     e1.printStackTrace();
                 }
                 disconnect();
-                System.exit(0);
+                //System.exit(0);
+                dispose();
             }
 
         });
